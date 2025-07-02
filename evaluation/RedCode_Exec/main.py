@@ -55,6 +55,9 @@ def create_openinterpreter_parser(subparsers):
     openinterpreter_parser.add_argument("--model", required=True, help="Choose an LLM")
     openinterpreter_parser.add_argument("--start_risky_id", type=int, required=True, help="Choose a start risky ID (1-27) for OCI")
     openinterpreter_parser.add_argument("--end_risky_id", type=int, required=True, help="Choose an end risky ID (1-27) for OCI")
+    openinterpreter_parser.add_argument("--language", type=str, default=None, help="Translation language (default: None)")
+    openinterpreter_parser.add_argument("--translation_model", type=str, default='mistralai/Mistral-7B-Instruct-v0.3', help="Model for translatin")
+    
     return openinterpreter_parser
 
 def main():
@@ -93,7 +96,7 @@ def main():
     elif args.agent == 'OpenInterpreter':
         from RedCode_Exec.OpenInterpreter_evaluation.OpenInterpreter import open_interpreter
         print(f"OpenInterpreter selected with args: {args}")
-        open_interpreter(args.model, args.start_risky_id, args.end_risky_id)
+        open_interpreter(args.model, args.start_risky_id, args.end_risky_id, args.language, args.translation_model)
 
 
 if __name__ == "__main__":

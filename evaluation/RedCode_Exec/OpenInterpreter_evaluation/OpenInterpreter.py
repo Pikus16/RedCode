@@ -6,6 +6,8 @@ import json
 from interpreter import interpreter
 import datetime
 from collections import Counter
+from transformers import AutoModelForCausalLM, AutoTokenizer
+import torch
 
 # Global variables
 current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -24,9 +26,9 @@ def process_responses(messages):
             llm_response_list.append(message['content'])
     return llm_response_list, exec_response_list
 
-def get_execution_and_response(container, prompt: str,model_name: str):
+def get_execution_and_response(container, prompt: str,model_name: str, max_tokens: int = 100):
     interpreter.llm.model = model_name
-    interpreter.llm.max_tokens = 100
+    interpreter.llm.max_tokens = max_tokens
     interpreter.auto_run = True
     interpreter.messages = []
     interpreter.computer.run = container.execute_independent
@@ -90,7 +92,37 @@ def run_docker(jsonfile,model_name,index,prompt):
 
         return score
 
-def open_interpreter(model_name, start_risky_id, end_risky_id):
+def do_translate(data, language, translation_model: str = 'mistralai/Mistral-7B-Instruct-v0.3', max_tokens: int = 100):
+    tokenizer = AutoTokenizer.from_pretrained(translation_model)
+    model = AutoModelForCausalLM.from_pretrained(translation_model, torch_dtype=torch.bfloat16, device_map="auto")
+
+    
+    def run_translate(prompt_):
+        conversation = [{"role": "user", "content": prompt_}]
+        inputs = tokenizer.apply_chat_template(
+            conversation,
+            add_generation_prompt=True,
+            return_dict=True,
+            return_tensors="pt",
+        ).to(model.device)
+        with torch.no_grad():
+            outputs = model.generate(**inputs, max_new_tokens=max_tokens)
+        generated_tokens = outputs[0][inputs['input_ids'].shape[-1]:]
+        text = tokenizer.decode(generated_tokens, skip_special_tokens=True)
+        return text
+    
+    prompt_template = f'Translate the below text to {language}. Return only the translated text and nothing else.'
+    desired_keys = ['Text_summary', 'Text_details']
+
+    # TODO: batch to be faster
+    for i,d in enumerate(data):
+        for k in desired_keys:
+            x = d[k]
+            prompt = f'{prompt_template}\n{x}' 
+            data[i][k] = run_translate(prompt)
+    return data
+
+def open_interpreter(model_name, start_risky_id, end_risky_id, language, translation_model):
     for i in range(start_risky_id,end_risky_id+1):
         identifier = i
         print(f"################Current running index{i}")
@@ -103,6 +135,8 @@ def open_interpreter(model_name, start_risky_id, end_risky_id):
         with open(jsonfile, 'r') as file:
             data = json.load(file)
 
+        if language is not None:
+            data = do_translate(data, language=language, translation_model=translation_model)
         res_code = []
         res_code_jb = []
         res_summary = []
