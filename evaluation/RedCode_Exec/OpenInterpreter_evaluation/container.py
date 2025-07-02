@@ -4,9 +4,12 @@ import signal
 import logging
 import time
 import os
+import tarfile
+import io
+from textwrap import dedent
 
 class Container:
-    def __init__(self, image, name=None):
+    def __init__(self, image):
         self.image = image
         self.name = image
         self.client = docker.from_env()
@@ -49,6 +52,21 @@ class Container:
             logging.error(f"Failed to start container: {e}")
             self.container = None
         return self
+    
+    def __exit__(self, exc_type, exc_value, traceback):
+        logging.info(f"Stopping and removing container {self.name}...")
+        if self.container:
+            try:
+                self.container.stop()
+            except Exception as e:
+                logging.error(f"Could not stop container {self.name}: {e}")
+            finally:
+                try:
+                    self.container.remove()
+                    logging.info(f"Container {self.name} removed successfully.")
+                except Exception as e:
+                    logging.error(f"Could not remove container {self.name}: {e}")
+
 
     def image_exists(self, image_name):
         try:
@@ -100,40 +118,53 @@ class Container:
         
         return "Execution timed out"
 
-    def execute_independent(self, command, *params):
+    def execute_independent(self, language, command, stream):
         # print("=== EXECUTING INDEPENDENT ===\n", command)
-        language, command = command
         # if params:
         #     print("== Parameters ==\n", params)
+        def create_and_copy_temp_file(content, dest_path):
+            # Create a tar archive in memory
+            data = io.BytesIO()
+            with tarfile.TarFile(fileobj=data, mode="w") as tar:
+                file_data = content.encode()
+                tarinfo = tarfile.TarInfo(name=os.path.basename(dest_path))
+                tarinfo.size = len(file_data)
+                tar.addfile(tarinfo, io.BytesIO(file_data))
+            data.seek(0)
+            # Put archive into container at target directory
+            self.container.put_archive(os.path.dirname(dest_path), data)
+
+        command = dedent(command).strip()  # clean up indentation
+
         if language == "bash":
-            cmd = ["bash", "-c", command]
-            if params:
-                cmd.append("--")
-                cmd.extend(params)
+            temp_path = "/tmp/script.sh"
+            create_and_copy_temp_file(command, temp_path)
+            self.execute_with_retries(["chmod", "+x", temp_path])
+            cmd = ["bash", temp_path]
+
         elif language == "python":
-            cmd = ["python", "-c", command, *params]
+            temp_path = "/tmp/script.py"
+            create_and_copy_temp_file(command, temp_path)
+            cmd = ["python3", temp_path]
+
         elif language == "c++":
             self.execute_independent(
-                (
-                    "bash",
-                    f'echo "{json.dumps(command)}" > /tmp/main.cpp && '
-                    f"g++ -o /tmp/a.out /tmp/main.cpp",
-                ),
+                "bash",
+                f'echo {json.dumps(command)} > /tmp/main.cpp && g++ -o /tmp/a.out /tmp/main.cpp',
                 None,
             )
-            cmd = ["/tmp/a.out", *params]
+            cmd = ["/tmp/a.out"]
+
         elif language == "c":
             self.execute_independent(
-                (
-                    "bash",
-                    f'echo "{json.dumps(command)}" > /tmp/main.cpp && '
-                    f"gcc -o /tmp/a.out /tmp/main.cpp",
-                ),
+                "bash",
+                f'echo {json.dumps(command)} > /tmp/main.c && gcc -o /tmp/a.out /tmp/main.c',
                 None,
             )
-            cmd = ["/tmp/a.out", *params]
+            cmd = ["/tmp/a.out"]
         else:
             raise ValueError(f"Unsupported language {language}")
         
-        return self.execute_with_retries(cmd)
+        run_result = self.execute_with_retries(cmd)
+        return [{"type": "console", "format": "output", "content": run_result}]
 

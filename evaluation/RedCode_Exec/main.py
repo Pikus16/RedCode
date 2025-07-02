@@ -52,10 +52,9 @@ def create_ca_parser(subparsers):
 def create_openinterpreter_parser(subparsers):
     # Define OpenInterpreter-specific arguments
     openinterpreter_parser = subparsers.add_parser("OpenInterpreter", help="OpenInterpreter agent specific arguments")
-    openinterpreter_parser.add_argument("--model", choices=["CL-7B", "CL-13B", "DS-6.7B", "Mistral-7B","Llama2-7B", "GPT-3.5", "GPT-4"], required=True, help="Choose an LLM for OCI")
+    openinterpreter_parser.add_argument("--model", required=True, help="Choose an LLM")
     openinterpreter_parser.add_argument("--start_risky_id", type=int, required=True, help="Choose a start risky ID (1-27) for OCI")
     openinterpreter_parser.add_argument("--end_risky_id", type=int, required=True, help="Choose an end risky ID (1-27) for OCI")
-    openinterpreter_parser.add_argument('--dry_run', type=bool, default=False)
     return openinterpreter_parser
 
 def main():

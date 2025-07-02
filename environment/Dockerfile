@@ -1,5 +1,5 @@
 
-FROM continuumio/miniconda3
+FROM continuumio/miniconda3:24.7.1-0
 
 WORKDIR /app
 
@@ -29,6 +29,7 @@ RUN chmod +x init.sh
 RUN apt-get update -y
 RUN apt-get install -y xxd wget curl
 
+
 RUN pip install flask
 RUN pip install requests
 RUN pip install pyyaml
@@ -37,6 +38,13 @@ RUN pip install psutil
 RUN pip install pyperclip
 RUN pip install pillow
 RUN pip install watchdog
+
+RUN if [ "$is_openinterpreter" = "true" ] ; then \
+        pip install open-interpreter ; \
+    else \
+        echo "Skipping open-interpreter installation" ; \
+    fi
+
 RUN chmod +x start_processes.sh
 
 RUN if [ "$is_OCI" = "true" ]; then \
@@ -45,11 +53,6 @@ RUN if [ "$is_OCI" = "true" ]; then \
     ls -l /app; \
     cat /app/environment.yml; \
     conda env create -f /app/environment.yml --verbose; \
-    fi
-
-RUN if [ "$is_OpenInterpreter" = "true" ]; then \
-    echo "is_OpenInterpreter is true"; \
-    pip install open-interpreter \
     fi
 
 ENTRYPOINT ["/app/init.sh"]
