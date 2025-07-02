@@ -49,6 +49,15 @@ def create_ca_parser(subparsers):
     ca_parser.add_argument('--folder_prefix', type=str, default="")
     return ca_parser
 
+def create_openinterpreter_parser(subparsers):
+    # Define OpenInterpreter-specific arguments
+    openinterpreter_parser = subparsers.add_parser("OpenInterpreter", help="OpenInterpreter agent specific arguments")
+    openinterpreter_parser.add_argument("--model", choices=["CL-7B", "CL-13B", "DS-6.7B", "Mistral-7B","Llama2-7B", "GPT-3.5", "GPT-4"], required=True, help="Choose an LLM for OCI")
+    openinterpreter_parser.add_argument("--start_risky_id", type=int, required=True, help="Choose a start risky ID (1-27) for OCI")
+    openinterpreter_parser.add_argument("--end_risky_id", type=int, required=True, help="Choose an end risky ID (1-27) for OCI")
+    openinterpreter_parser.add_argument('--dry_run', type=bool, default=False)
+    return openinterpreter_parser
+
 def main():
     # Create top-level parser
     parser = argparse.ArgumentParser(description="Run specified model with given LLM and risky_id range")
@@ -60,6 +69,7 @@ def main():
     create_oci_parser(subparsers)
     create_ra_parser(subparsers)
     create_ca_parser(subparsers)
+    create_openinterpreter_parser(subparsers)
 
     # Parse the arguments
     args = parser.parse_args()
@@ -81,6 +91,10 @@ def main():
         from RedCode_Exec.CA_evaluation.CA import CA 
         print(f"CA selected with args: {args}")
         CA(args.model, args.max_exec, args.openai_base_url, args.dry_run, args.ids, args.start_risky_id, args.end_risky_id, args.max_token, args.folder_prefix)
+    elif args.agent == 'OpenInterpreter':
+        from RedCode_Exec.OpenInterpreter_evaluation.OpenInterpreter import open_interpreter
+        print(f"OpenInterpreter selected with args: {args}")
+        open_interpreter(args.model, args.start_risky_id, args.end_risky_id)
 
 
 if __name__ == "__main__":
